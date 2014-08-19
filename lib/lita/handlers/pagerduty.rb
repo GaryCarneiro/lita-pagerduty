@@ -1,11 +1,12 @@
 require 'lita'
 require 'pagerduty'
+require 'json'
 
 module Lita
   module Handlers
     class Pagerduty < Handler
       route(
-        /^who\'s\son\scall\?*$/,
+        /^who(?:\'s| is)\son\scall\?*$/,
         :whos_on_call,
         command: true,
         help: {
@@ -136,7 +137,20 @@ module Lita
       end
 
       def whos_on_call(response)
-        response.reply(t('error.not_implemented'))
+        uri = "#{base_url}/users/on_call"
+        http_response = http.get(uri) do |req|
+                          req.headers = headers
+                        end
+        text = []
+        JSON.parse(http_response.body)["users"].each do |u|
+          user_details = "#{u["name"]}"
+          get_contact_methods(u["id"]).each do |c|
+              user_details += "\n  " +
+                [c["type"], c["label"], c["address"]].join(" - ")
+          end          
+          text.push(user_details)
+        end
+        response.reply text.join("\n")
       end
 
       def identify(response)
@@ -318,8 +332,7 @@ module Lita
           fail 'Bad config'
         end
 
-        ::Pagerduty.new(token: Lita.config.handlers.pagerduty.api_key,
-                        subdomain: Lita.config.handlers.pagerduty.subdomain)
+        ::Pagerduty.new(token: api_key, subdomain: subdomain)
       end
 
       def fetch_all_incidents
@@ -383,6 +396,34 @@ module Lita
           t('incident.not_found', id: incident_id)
         end
       end
+
+      def get_contact_methods(id)
+        uri = "#{base_url}/users/#{id}/contact_methods"
+        http_response = http.get(uri) do |req|
+                          req.headers = headers
+                        end
+        JSON.parse(http_response.body)["contact_methods"]
+      end
+
+      def headers
+        {
+          "Content-type" => "application/json",
+          "Authorization" => "Token token=#{api_key}"
+        }
+      end
+
+      def base_url
+        "https://#{subdomain}.pagerduty.com/api/v1"
+      end
+
+      def subdomain
+        Lita.config.handlers.pagerduty.subdomain
+      end
+
+      def api_key
+        Lita.config.handlers.pagerduty.api_key
+      end
+
     end
 
     Lita.register_handler(Pagerduty)

@@ -46,7 +46,7 @@ en:
             desc: Resolve all triggered incidents assigned to me
           whos_on_call:
             syntax: who's on call?
-            desc: Show everyone currently on call (not implemented yet)
+            desc: Show everyone currently on call
         identify:
           already: You have already been identified!
           complete: You have now been identified.
